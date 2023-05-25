@@ -27,7 +27,7 @@ class Customer:
     def add_data(self):
         customers.append(self)
 
-    # Override the print method to print the deatils of the object in a readable format
+    # Override the print method to print the details of the object in a readable format
     def __str__(self):
         return f"Customer Number={self.customer_number}, Customer Name={self.customer_name}, " \
                f"Address={self.address}, City={self.city},ZIP={self.zip_code},Contact={self.email},Phone={self.phone_number}"
