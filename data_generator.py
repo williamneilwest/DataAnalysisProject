@@ -1,72 +1,113 @@
+import pyodbc
 from faker import Faker
 import random
-from tables import Customer, Equipment, ServiceCallSchedule, Contract, customers, contracts
-from datetime import datetime
+import datetime
 
-# Create Faker instance
 fake = Faker()
-contract_type_options = ['Active', 'Expired', 'Terminated', 'Pending']
-equipment_type_options = ['Machine', 'Mechanical', 'Electrical', 'Truck', 'Forklift']
-service_call_description_options = ['Repair', 'Installation', 'Consultation', 'Replacement', 'Cleaning']
-manufacture_types = ['Tolin', 'General Electric', 'Whirlpool', 'Godrej']
 
 
-def generate_customer():
-    # Generate Faker data
-    customer_name = fake.name()
-    customer_address = fake.street_address()
-    city_name = fake.city()
-    zip_code = fake.zipcode()
-    contact = fake.email()
-    phone_number = fake.phone_number()
-    fake_customer = Customer(customer_name, customer_address, city_name, zip_code, contact,
-                             phone_number)
-
-    Customer.add_data(fake_customer)
+# Function to generate a random date between two given dates
+def random_date(start_date, end_date):
+    return fake.date_between_dates(date_start=start_date, date_end=end_date)
 
 
-def generate_contract():
-    # Generate Faker data
-    starting_date = datetime(2000, 1, 1).date()
-    ending_date = datetime(2040, 1, 1).date()
-    contract_start_date = fake.date_between(start_date=starting_date, end_date=ending_date)
-    contract_end_date = fake.date_between(start_date=contract_start_date, end_date=ending_date)
-    contract_value = fake.pydecimal(left_digits=4, right_digits=2, positive=True)
-    contract_type = fake.random_element(contract_type_options)
-    fake_contract = Contract(random.choice(customers).customer_number, contract_start_date, contract_end_date,
-                             contract_value,
-                             contract_type)
-    if fake_contract.contract_end_date < datetime.today().date():
-        fake_contract.contract_type = 'Expired'
-    if fake_contract.contract_end_date > datetime.today().date() and not fake_contract.contract_type == 'Pending':
-        fake_contract.contract_type = 'Active'
-    if fake_contract.contract_start_date > datetime.today().date():
-        fake_contract.contract_type = 'Pending'
-    Contract.add_data(fake_contract)
+# Function to generate random contract value
+def random_contract_value():
+    return random.randint(1000, 100000)
 
 
-def generate_equipment():
-    # Generate Faker data
-    equipment_type = fake.random_element(equipment_type_options)
-    manufacture = fake.random_element(manufacture_types)
-    age = random.randint(1, 16)
-    fake_equipment = Equipment(equipment_type, random.choice(contracts).contract_number, manufacture, age)
-    Equipment.add_data(fake_equipment)
+# Function to generate random equipment age
+def random_equipment_age():
+    return random.randint(1, 10)
 
 
-def generate_sales_call():
-    # Generate Faker data
-    starting_date = datetime.today().date()
-    ending_date = datetime(2024, 5, 26).date()
-    service_call_date = fake.date_between(start_date=starting_date, end_date=ending_date)
-    service_call_description = fake.random_element(service_call_description_options)
-    service_call_contract_number = random.choice(contracts).contract_number
-    fake_service_call = ServiceCallSchedule(service_call_description, service_call_date, service_call_contract_number)
-    ServiceCallSchedule.add_data(fake_service_call)
+# Generate entries for the Customers table
+customers_data = []
+for _ in range(1000):
+    customer = {
+        'CustomerName': fake.company(),
+        'Address': fake.address(),
+        'City': fake.city(),
+        'ZIP': fake.zipcode(),
+        'Contact': fake.email(),
+        'PhoneNumber': fake.phone_number(),
+    }
+    customers_data.append(customer)
 
+# Generate entries for the Contracts table
+contracts_data = []
+for _ in range(1000):
+    contract = {
+        'CustomerNumber': random.randint(1, 1000),  # Randomly assigned customer number
+        'ContractStartDate': random_date(datetime.date(2010, 1, 1), datetime.date(2022, 12, 31)),
+        'ContractEndDate': random_date(datetime.date(2023, 1, 1), datetime.date(2026, 12, 31)),
+        'ContractValue': random_contract_value(),
+        'ContractType': fake.random_element(elements=('Active', 'Expired', 'Terminated')),
+    }
+    contracts_data.append(contract)
 
-def generate_data_tables():
-    generate_customer()
-    generate_contract()
-    generate_equipment()
-    generate_sales_call()
+# Generate entries for the Equipment table
+equipment_data = []
+for i in range(1000):
+    equipment = {
+        'EquipmentType': fake.random_element(elements=('Condenser', 'Motor', 'Fan', 'Compressor')),
+        'ContractNumber': random.randint(1, 1000),  # Randomly assigned contract number
+        'Manufacture': fake.random_element(elements=('Goodman', 'Whirlpool', 'GE')),
+        'Age': random_equipment_age(),
+    }
+    equipment_data.append(equipment)
+
+# Generate entries for the CallSchedule table
+call_schedule_data = []
+for i in range(1000):
+    call_schedule = {
+        'ServiceCallDescription': fake.sentence(),
+        'ScheduledDate': random_date(datetime.date(2023, 1, 1), datetime.date(2030, 12, 31)),
+        'ContractNumber': random.randint(1, 1000),  # Randomly assigned contract number
+    }
+    call_schedule_data.append(call_schedule)
+
+# Set up the connection to the SQL Server database
+connection_string = 'DRIVER={ODBC Driver 17 for SQL Server};SERVER=WNW\MSSQLSERVER01;DATABASE=TolinData' \
+                    ';Trusted_Connection=yes;'
+connection = pyodbc.connect(connection_string)
+cursor = connection.cursor()
+
+# Generate entries for the Customers table
+for customer in customers_data:
+    sql = "INSERT INTO Customers (CustomerName, Address, City, ZIP, Contact, PhoneNumber) VALUES (?, " \
+          "?, ?, ?, ?, ?)"
+    cursor.execute(sql, (
+        customer['CustomerName'], customer['Address'], customer['City'], customer['ZIP'],
+        customer['Contact'], customer['PhoneNumber']))
+connection.commit()
+
+# Generate entries for the Contracts table
+for contract in contracts_data:
+    sql = "INSERT INTO Contracts (CustomerNumber, ContractEndDate, ContractValue, ContractType) " \
+          "VALUES (?, ?, ?, ?)"
+    cursor.execute(sql, (
+        contract['CustomerNumber'], contract['ContractStartDate'],
+        contract['ContractEndDate'],
+        contract['ContractValue'], contract['ContractType']))
+connection.commit()
+
+# Generate entries for the Equipment table
+for equipment in equipment_data:
+    sql = "INSERT INTO Equipment (EquipmentType, Manufacture, Age) VALUES (?, ?, ?)"
+    cursor.execute(sql, (
+        equipment['EquipmentType'], equipment['ContractNumber'], equipment['Manufacture'],
+        equipment['Age']))
+connection.commit()
+
+# Generate entries for the CallSchedule table
+for call_schedule in call_schedule_data:
+    sql = "INSERT INTO CallSchedule (ServiceCallDescription, ScheduledDate, ContractNumber) VALUES " \
+          "(?, ?, ?)"
+    cursor.execute(sql, (
+        call_schedule['ServiceCallDescription'], call_schedule['ScheduledDate'],
+        call_schedule['ContractNumber']))
+connection.commit()
+
+# Close the connection to the database
+connection.close()
